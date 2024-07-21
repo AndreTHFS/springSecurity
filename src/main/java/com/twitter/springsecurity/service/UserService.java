@@ -24,9 +24,9 @@ import java.util.UUID;
 @Service
 public class UserService {
 
-    private UserRepository userRepository;
-    private RoleRepository roleRepository;
-    private PasswordEncoder passwordEncoder;
+    private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final PasswordEncoder passwordEncoder;
 
     public UserService(UserRepository userRepository,
                        RoleRepository roleRepository, PasswordEncoder passwordEncoder) {
@@ -38,37 +38,43 @@ public class UserService {
     @Transactional
     public void newUser(CreateUserDto dto){
 
-        var basicRole  = roleRepository.findByName(Role.Values.BASIC.name());
         var userFromDb = userRepository.findByUsername(dto.username());
-        if (userFromDb.isPresent()){
-            throw new  BadCredentialsException("Usuário já existe");
-        }
+        userFromDb.ifPresentOrElse(
+                user -> {
+                    System.out.println("Usuário já existe");
+                },
+                () -> {
+                    var user = new User();
+                    user.setUsername(dto.username());
+                    user.setPassword(passwordEncoder.encode(dto.password()));
+                    user.setBloqueado(false);
+                    user.setRoles(Set.of(roleRepository
+                            .findByName(Role.Values.BASIC.name())));
+                    userRepository.save(user);
+                }
+        );
 
-        var user = new User();
-        user.setUsername(dto.username());
-        user.setPassword(passwordEncoder.encode(dto.password()));
-        user.setBloqueado(false);
-        user.setRoles(Set.of(basicRole));
-        userRepository.save(user);
+
     }
 
     @Transactional
     public void  blockUser(UUID userId) {
         var userFromDb = userRepository.findById(userId);
-
-        if (!userFromDb.get().isBloqueado()) {
-            userFromDb.get().setBloqueado(true);
-            userRepository.save(userFromDb.get());
-
-
+        if (userFromDb.get().isBloqueado()) {
+           throw new RuntimeException("Usuário já está bloqueado");
         }
+        userFromDb.get().setBloqueado(true);
+        userRepository.save(userFromDb.get());
     }
 
     @Transactional
     public void unlockUser(UUID id){
         var userUnlocked = userRepository.findById(id);
-         userUnlocked.get().setBloqueado(false);
-         userRepository.save(userUnlocked.get());
+        if (!userUnlocked.get().isBloqueado()){
+            throw new RuntimeException("Usuário já está desbloqueado");
+        }
+            userUnlocked.get().setBloqueado(false);
+            userRepository.save(userUnlocked.get());
 
     }
 
@@ -80,9 +86,10 @@ public class UserService {
     }
 
     public Optional<User> getById(UUID userId){
-        var user = userRepository.findById(userId);
-
+         var user = userRepository.findById(userId);
+         if(user.isEmpty()){
+             throw new RuntimeException("Usuário não encontrado");
+         }
          return user;
     }
-
 }

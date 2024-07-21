@@ -27,10 +27,18 @@ public class TwitterService {
 
     public void createTweet(CreateTweetDto dto, JwtAuthenticationToken token){
         var user = userRepository.findById(UUID.fromString(token.getName()));
-        var tweet = new Tweet();
-        tweet.setUser(user.get());
-        tweet.setContent(dto.content());
-        tweetRepository.save(tweet);
+        user.ifPresentOrElse(
+                user1 -> {
+                    var tweet = new Tweet();
+                    tweet.setUser(user.get());
+                    tweet.setContent(dto.content());
+                    tweetRepository.save(tweet);
+                },
+                () ->{
+                    System.out.println("Usuário não cadastrado para fazer um tweet");
+                }
+        );
+
     }
 
     public void deteteTweet(Long idTweet, JwtAuthenticationToken token){
